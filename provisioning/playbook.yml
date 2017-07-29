@@ -1,0 +1,76 @@
+---
+- hosts: all
+  become: true
+  gather_facts: False
+
+  pre_tasks:
+    - raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal)
+    - setup:
+
+  tasks:
+    - name: Update and Upgrade system
+      apt:
+        upgrade: dist
+        update_cache: yes
+        cache_valid_time: 86400 # One day
+    - name: Install PHP 7
+      apt:
+        name: php7.0
+        state: present
+    - name: Install PHP 7 XML
+      apt:
+        name: php7.0-xml
+        state: present
+    - name: Install Apache 2
+      apt:
+        name: apache2
+        state: present
+    - name: Install Apache PHP module
+      apt:
+        name: libapache2-mod-php7.0
+        state: present
+    - name: Enable Apache Rewrite module
+      apache2_module:
+        state: present
+        name: rewrite
+      notify:
+        - restart apache2
+    - name: Download DokuWiki
+      get_url:
+        url: https://download.dokuwiki.org/src/dokuwiki/dokuwiki-stable.tgz
+        dest: /var/www/dokuwiki.tgz
+    - name: Untar DokuWiki
+      unarchive:
+        src: /var/www/dokuwiki.tgz
+        dest: /var/www
+        remote_src: yes
+    - name: Rename DokuWiki directory
+      shell: mv /var/www/dokuwiki-*/ /var/www/dokuwiki
+    - name: Modify owner for dokuwiki directory
+      file:
+        path: /var/www/dokuwiki
+        state: directory
+        owner: www-data
+        group: www-data
+        recurse: yes
+    - name: Set dokuwiki as Apache document root
+      copy:
+        src: files/000-default.conf
+        dest: /etc/apache2/sites-enabled/000-default.conf
+        force: yes
+      notify:
+        - restart apache2
+    - name: Set dokuwiki as Apache document root
+      copy:
+        src: files/apache2.conf
+        dest: /etc/apache2/apache2.conf
+        force: yes
+      notify:
+        - restart apache2
+
+  handlers:
+    - name: restart apache2
+      service:
+        name: apache2
+        state: restarted
+
